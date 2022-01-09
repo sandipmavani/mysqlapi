@@ -2,10 +2,13 @@ package controllers
 
 import (
 	"fmt"
+	"log"
 	"mysqlapi/database"
 	"mysqlapi/models"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/simia-tech/crypt"
+	"github.com/syyongx/php2go"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -51,6 +54,9 @@ func CreateUser(c *fiber.Ctx) error {
 	// 		"message": "incorrect password",
 	// 	})
 	// }
+	if value, ok := data["password"]; ok {
+		updatePassword(userinfo.UserName, value)
+	}
 
 	if value, ok := data["sessionAllowed"]; ok {
 		upsertOperation("radcheck", "Max-All-Session", value, userinfo.UserName)
@@ -133,11 +139,30 @@ func UpdateUser(c *fiber.Ctx) error {
 	} else {
 		c.Status(fiber.StatusNotFound)
 		return c.JSON(fiber.Map{
-			"message": "username already exist",
+			"message": "username not exist",
 		})
 	}
 
 }
+func updatePassword(username, password string) {
+	var str string
+	var shuf string
+	str = php2go.StrShuffle("abcdefghijklmnopqrstuvwxyz0123456789")
+	shuf = php2go.Substr(str, 0, 8)
+	fmt.Println(shuf)
+	salt := fmt.Sprintf("%s%s%s", []byte("$5$"), []byte(shuf), []byte("$"))
+	fmt.Println(salt)
+
+	encoded, err := crypt.Crypt(password, salt)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println(encoded)
+	upsertOperation("radcheck", "Crypt-Password", encoded, username)
+
+}
+
 func upsertOperation(tableName, column, value, userName string) {
 	var field models.RedCheck
 	field.UserName = userName
@@ -145,14 +170,11 @@ func upsertOperation(tableName, column, value, userName string) {
 	field.Operation = ":="
 	field.Value = value
 
-	fmt.Println(field)
-
 	var listA []models.RedCheck
 	var count int64
 	database.DB.Table(tableName).Where(map[string]interface{}{"username": userName,
 		"value": value, "attribute": column}).Find(&listA).Count(&count)
 
-	fmt.Println(count)
 	if count == 0 {
 		if database.DB.Table(tableName).Where(map[string]interface{}{"username": userName, "attribute": column}).Updates(&field).RowsAffected == 0 {
 			database.DB.Table(tableName).Create(&field)

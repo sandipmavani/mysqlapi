@@ -83,6 +83,15 @@ func CreateUser(c *fiber.Ctx) error {
 		upsertOperation("radcheck", "CoovaChilli-Max-Total-Octets-Daily", value, userinfo.UserName)
 	}
 
+	if value, ok := data["timeOut"]; ok {
+		upsertOperationReplay("radreply", "Session-Timeout", value, userinfo.UserName)
+	}
+	if value, ok := data["maxUpBandWidth"]; ok {
+		upsertOperationReplay("radreply", "CoovaChilli-Bandwidth-Max-Up", value, userinfo.UserName)
+	}
+	if value, ok := data["maxDownBandWidth"]; ok {
+		upsertOperationReplay("radreply", "CoovaChilli-Bandwidth-Max-Down", value, userinfo.UserName)
+	}
 	var tmp CreateResponse
 	tmp.UserName = userinfo.UserName
 	tmp.Id = userinfo.Id
@@ -122,7 +131,6 @@ func UpdateUser(c *fiber.Ctx) error {
 
 		if value, ok := data["totalData"]; ok {
 			upsertOperation("radcheck", "CoovaChilli-Max-Total-Octets", value, checkuser.UserName)
-
 		}
 
 		if value, ok := data["totalDataMonthly"]; ok {
@@ -131,6 +139,18 @@ func UpdateUser(c *fiber.Ctx) error {
 
 		if value, ok := data["totalDataDaily"]; ok {
 			upsertOperation("radcheck", "CoovaChilli-Max-Total-Octets-Daily", value, checkuser.UserName)
+		}
+		if value, ok := data["timeOut"]; ok {
+			upsertOperationReplay("radreply", "Session-Timeout", value, checkuser.UserName)
+		}
+		if value, ok := data["maxUpBandWidth"]; ok {
+			upsertOperationReplay("radreply", "CoovaChilli-Bandwidth-Max-Up", value, checkuser.UserName)
+		}
+		if value, ok := data["maxDownBandWidth"]; ok {
+			upsertOperationReplay("radreply", "CoovaChilli-Bandwidth-Max-Down", value, checkuser.UserName)
+		}
+		if value, ok := data["password"]; ok {
+			updatePassword(checkuser.UserName, value)
 		}
 
 		return c.JSON(fiber.Map{
@@ -171,6 +191,26 @@ func upsertOperation(tableName, column, value, userName string) {
 	field.Value = value
 
 	var listA []models.RedCheck
+	var count int64
+	database.DB.Table(tableName).Where(map[string]interface{}{"username": userName,
+		"value": value, "attribute": column}).Find(&listA).Count(&count)
+
+	if count == 0 {
+		if database.DB.Table(tableName).Where(map[string]interface{}{"username": userName, "attribute": column}).Updates(&field).RowsAffected == 0 {
+			database.DB.Table(tableName).Create(&field)
+		}
+	}
+
+	return
+}
+func upsertOperationReplay(tableName, column, value, userName string) {
+	var field models.RedReplay
+	field.UserName = userName
+	field.Attribute = column
+	field.Operation = "="
+	field.Value = value
+
+	var listA []models.RedReplay
 	var count int64
 	database.DB.Table(tableName).Where(map[string]interface{}{"username": userName,
 		"value": value, "attribute": column}).Find(&listA).Count(&count)

@@ -88,16 +88,75 @@ func CreateUser(c *fiber.Ctx) error {
 
 }
 
+func UpdateUser(c *fiber.Ctx) error {
+
+	var data map[string]string
+
+	if error := c.BodyParser(&data); error != nil {
+		return error
+	}
+
+	var checkuser models.UserInfo
+
+	database.DB.Table("userinfo").Where("username = ?", data["username"]).First(&checkuser)
+
+	if checkuser.UserName == data["username"] {
+
+		if value, ok := data["sessionAllowed"]; ok {
+			upsertOperation("radcheck", "Max-All-Session", value, checkuser.UserName)
+		}
+
+		if value, ok := data["maxMonthlySession"]; ok {
+			upsertOperation("radcheck", "Max-Monthly-Session", value, checkuser.UserName)
+		}
+
+		if value, ok := data["maxDailySession"]; ok {
+			upsertOperation("radcheck", "Max-Daily-Session", value, checkuser.UserName)
+		}
+
+		if value, ok := data["totalData"]; ok {
+			upsertOperation("radcheck", "CoovaChilli-Max-Total-Octets", value, checkuser.UserName)
+
+		}
+
+		if value, ok := data["totalDataMonthly"]; ok {
+			upsertOperation("radcheck", "CoovaChilli-Max-Total-Octets-Monthly", value, checkuser.UserName)
+		}
+
+		if value, ok := data["totalDataDaily"]; ok {
+			upsertOperation("radcheck", "CoovaChilli-Max-Total-Octets-Daily", value, checkuser.UserName)
+		}
+
+		return c.JSON(fiber.Map{
+			"message": "success",
+		})
+	} else {
+		c.Status(fiber.StatusNotFound)
+		return c.JSON(fiber.Map{
+			"message": "username already exist",
+		})
+	}
+
+}
 func upsertOperation(tableName, column, value, userName string) {
 	var field models.RedCheck
 	field.UserName = userName
 	field.Attribute = column
 	field.Operation = ":="
 	field.Value = value
-	database.DB.Table(tableName).Create(&field)
 
-	if database.DB.Table(tableName).Where("username = ?", userName).Where("attribute = ?", column).Updates(&field).RowsAffected == 0 {
-		database.DB.Table(tableName).Create(&field)
+	fmt.Println(field)
+
+	var listA []models.RedCheck
+	var count int64
+	database.DB.Table(tableName).Where(map[string]interface{}{"username": userName,
+		"value": value, "attribute": column}).Find(&listA).Count(&count)
+
+	fmt.Println(count)
+	if count == 0 {
+		if database.DB.Table(tableName).Where(map[string]interface{}{"username": userName, "attribute": column}).Updates(&field).RowsAffected == 0 {
+			database.DB.Table(tableName).Create(&field)
+		}
 	}
 
 	return

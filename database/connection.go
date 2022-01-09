@@ -1,6 +1,8 @@
 package database
 
 import (
+	"os"
+
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 )
@@ -8,7 +10,9 @@ import (
 var DB *gorm.DB
 
 func Connect() {
-	connection, err := gorm.Open(mysql.Open("root:sandip@/test2"), &gorm.Config{})
+	db := os.Getenv("DB")
+
+	connection, err := gorm.Open(mysql.Open(db), &gorm.Config{})
 
 	if err != nil {
 		panic("could not connect to the database")

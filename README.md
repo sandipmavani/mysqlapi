@@ -17,8 +17,4 @@ go run main.go
    - mysql
    - gorm
 
-## Deployment
 
-Backend is deploy at Heroku [api]()
-
-Forntend is deploy at Netlify [App](https://go-react-auth-app.netlify.app/)

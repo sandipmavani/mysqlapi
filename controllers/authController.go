@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"fmt"
 	"mysqlapi/database"
 	"mysqlapi/models"
 	"strconv"
@@ -14,13 +15,9 @@ import (
 const SecretKey = "secret"
 
 type LoginResponse struct {
-	UserName     string `json:"userName"`
-	Id           uint   `json:"id"`
-	Email        string `json:"email`
-	SessionAllow uint   `json:"sessionAllowed"`
-	DataDaily    uint   `json:"dataDaily"`
-	DataMonthly  uint   `json:"dataMonthly"`
-	SessionTime  uint   `json:"sessionTime" `
+	UserName string `json:"userName"`
+	Id       uint   `json:"id"`
+	Email    string `json:"email`
 }
 
 func Register(c *fiber.Ctx) error {
@@ -30,6 +27,19 @@ func Register(c *fiber.Ctx) error {
 		return error
 	}
 
+	if key, ok := data["key"]; !ok {
+		fmt.Println(key)
+		c.Status(fiber.StatusNotFound)
+		return c.JSON(fiber.Map{
+			"message": "Registration Key Required",
+		})
+	}
+	if data["key"] != "XYZ" {
+		c.Status(fiber.StatusNotFound)
+		return c.JSON(fiber.Map{
+			"message": "Registration Key Invalid",
+		})
+	}
 	var checkuser models.User
 
 	database.DB.Where("email = ?", data["email"]).First(&checkuser)
@@ -82,15 +92,6 @@ func Register(c *fiber.Ctx) error {
 		})
 	}
 
-	cookie := fiber.Cookie{
-		Name:     "jwt",
-		Value:    token,
-		Expires:  time.Now().Add(time.Hour * 24),
-		HTTPOnly: true,
-	}
-
-	c.Cookie(&cookie)
-
 	var tmp LoginResponse
 	tmp.UserName = user.UserName
 	tmp.Id = user.Id
@@ -114,7 +115,7 @@ func Login(c *fiber.Ctx) error {
 
 	var user models.User
 
-	database.DB.Where("email = ?", data["email"]).First(&user)
+	database.DB.Where("userName = ?", data["username"]).First(&user)
 
 	if user.Id == 0 {
 		c.Status(fiber.StatusNotFound)
@@ -207,4 +208,13 @@ func Logout(c *fiber.Ctx) error {
 		"message": "success",
 	})
 
+}
+func ValidateToken(encodedToken string) (*jwt.Token, error) {
+	return jwt.Parse(encodedToken, func(token *jwt.Token) (interface{}, error) {
+		if _, isvalid := token.Method.(*jwt.SigningMethodHMAC); !isvalid {
+			return nil, fmt.Errorf("Invalid token", token.Header["alg"])
+
+		}
+		return []byte(SecretKey), nil
+	})
 }
